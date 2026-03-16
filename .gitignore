@@ -1,0 +1,9 @@
+/target
+*.env
+.env.*
+node_modules/
+*.swp
+*.swo
+*~
+.DS_Store
+credentials.enc
