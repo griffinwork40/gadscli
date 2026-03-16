@@ -27,7 +27,7 @@ pub fn print<T: Serialize>(data: &T) -> Result<()> {
                             .map_err(|e| crate::error::GadsError::Serialization(e.to_string()))?;
                     }
                 }
-                wtr.flush().map_err(|e| crate::error::GadsError::Io(e))?;
+                wtr.flush().map_err(crate::error::GadsError::Io)?;
             }
         }
         serde_json::Value::Object(obj) => {
@@ -40,7 +40,7 @@ pub fn print<T: Serialize>(data: &T) -> Result<()> {
             }).collect();
             wtr.write_record(&row)
                 .map_err(|e| crate::error::GadsError::Serialization(e.to_string()))?;
-            wtr.flush().map_err(|e| crate::error::GadsError::Io(e))?;
+            wtr.flush().map_err(crate::error::GadsError::Io)?;
         }
         _ => println!("{}", value),
     }

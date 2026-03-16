@@ -5,6 +5,10 @@ edition = "2021"
 description = "A CLI for the Google Ads API"
 license = "MIT"
 
+[lib]
+name = "gadscli"
+path = "src/lib.rs"
+
 [[bin]]
 name = "gadscli"
 path = "src/main.rs"

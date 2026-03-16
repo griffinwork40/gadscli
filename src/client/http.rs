@@ -48,14 +48,13 @@ impl HttpClient {
 
             let status = response.status().as_u16();
 
-            if status == 429 || status == 503 {
-                if attempt < max_retries {
+            if (status == 429 || status == 503)
+                && attempt < max_retries {
                     let backoff = std::time::Duration::from_secs(1u64 << attempt);
                     tokio::time::sleep(backoff).await;
                     attempt += 1;
                     continue;
                 }
-            }
 
             if status == 401 {
                 return Err(GadsError::Auth(

@@ -1,0 +1,28 @@
+{
+  "error": {
+    "code": 400,
+    "message": "Request contains an invalid argument.",
+    "status": "INVALID_ARGUMENT",
+    "details": [
+      {
+        "@type": "type.googleapis.com/google.ads.googleads.v18.errors.GoogleAdsFailure",
+        "errors": [
+          {
+            "errorCode": {
+              "queryError": "PROHIBITED_RESOURCE_TYPE_IN_SELECT_CLAUSE"
+            },
+            "message": "The resource type in the SELECT clause is not permitted.",
+            "location": {
+              "fieldPathElements": [
+                {
+                  "fieldName": "query"
+                }
+              ]
+            }
+          }
+        ],
+        "requestId": "abc123def456"
+      }
+    ]
+  }
+}

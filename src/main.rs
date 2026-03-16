@@ -7,6 +7,7 @@ pub mod commands;
 pub mod config;
 pub mod error;
 pub mod gaql;
+pub mod helpers;
 pub mod output;
 pub mod types;
 pub mod util;

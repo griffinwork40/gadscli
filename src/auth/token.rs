@@ -13,6 +13,12 @@ struct CachedToken {
     expires_at: Option<DateTime<Utc>>,
 }
 
+impl Default for TokenCache {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl TokenCache {
     pub fn new() -> Self {
         Self {

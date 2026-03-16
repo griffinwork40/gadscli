@@ -31,7 +31,7 @@ fn get(key: &str, config: &Config) -> Result<()> {
 
 fn list(config: &Config) -> Result<()> {
     let values = config.list_values();
-    println!("{:<25} {}", "KEY", "VALUE");
+    println!("{:<25} VALUE", "KEY");
     println!("{}", "-".repeat(50));
     for (key, value) in &values {
         let display = if value.is_empty() { "(not set)" } else { value.as_str() };

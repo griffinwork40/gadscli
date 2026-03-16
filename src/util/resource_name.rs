@@ -80,7 +80,7 @@ impl ResourceName {
 
     /// Extract the resource ID from a resource name (last segment)
     pub fn extract_id(resource_name: &str) -> Option<String> {
-        resource_name.split('/').last().map(String::from)
+        resource_name.split('/').next_back().map(String::from)
     }
 }
 

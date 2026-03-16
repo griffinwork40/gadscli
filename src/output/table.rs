@@ -58,7 +58,7 @@ pub fn print_table(headers: &[&str], rows: &[Vec<String>]) -> Result<()> {
     table.set_header(headers.iter().map(|h| h.to_uppercase()));
 
     for row in rows {
-        let colored_row: Vec<String> = row.iter().enumerate().map(|(_i, cell)| {
+        let colored_row: Vec<String> = row.iter().map(|cell| {
             colorize_status(cell)
         }).collect();
         table.add_row(colored_row);

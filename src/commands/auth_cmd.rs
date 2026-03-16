@@ -118,7 +118,7 @@ fn logout(config: &Config) -> Result<()> {
     if let Ok(creds_path) = Config::credentials_path() {
         if creds_path.exists() {
             std::fs::remove_file(&creds_path)
-                .map_err(|e| GadsError::Io(e))?;
+                .map_err(GadsError::Io)?;
         }
     }
 
