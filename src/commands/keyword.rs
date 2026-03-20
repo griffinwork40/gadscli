@@ -32,7 +32,7 @@ pub async fn handle_list(
     client: &GoogleAdsClient,
     customer_id_override: Option<&str>,
     ad_group_id: Option<&str>,
-    _campaign_id: Option<&str>,
+    campaign_id: Option<&str>,
 ) -> Result<()> {
     let cid = client.customer_id(customer_id_override)?;
 
@@ -49,6 +49,13 @@ pub async fn handle_list(
         query.push_str(&format!(
             " AND ad_group_criterion.ad_group = 'customers/{}/adGroups/{}'",
             cid, ag_id
+        ));
+    }
+
+    if let Some(cid_filter) = campaign_id {
+        query.push_str(&format!(
+            " AND campaign.resource_name = 'customers/{}/campaigns/{}'",
+            cid, cid_filter
         ));
     }
 

@@ -8,7 +8,7 @@ pub async fn handle(command: &AdCommands, client: &GoogleAdsClient, cli: &Cli) -
     let cid = client.customer_id(cli.customer_id.as_deref())?;
 
     match command {
-        AdCommands::List { ad_group_id } => {
+        AdCommands::List { ad_group_id, campaign_id } => {
             let mut query = String::from(
                 "SELECT ad_group_ad.ad.id, ad_group_ad.ad.name, ad_group_ad.ad.type, \
                  ad_group_ad.status, ad_group_ad.ad.responsive_search_ad.headlines, \
@@ -21,6 +21,13 @@ pub async fn handle(command: &AdCommands, client: &GoogleAdsClient, cli: &Cli) -
                 query.push_str(&format!(
                     " AND ad_group_ad.ad_group = 'customers/{}/adGroups/{}'",
                     cid, ag_id
+                ));
+            }
+
+            if let Some(cid_filter) = campaign_id {
+                query.push_str(&format!(
+                    " AND ad_group.campaign = 'customers/{}/campaigns/{}'",
+                    cid, cid_filter
                 ));
             }
 
