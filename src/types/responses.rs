@@ -3,8 +3,8 @@
 use serde::{Deserialize, Serialize};
 
 use crate::types::resources::{
-    Ad, AdGroup, Asset, BiddingStrategy, Budget, ConversionAction, CustomerClient, Label, Metrics,
-    Recommendation,
+    deserialize_optional_i64, Ad, AdGroup, Asset, BiddingStrategy, Budget, ConversionAction,
+    Customer, CustomerClient, Label, Metrics, Recommendation,
 };
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
@@ -13,7 +13,7 @@ pub struct SearchResponse {
     pub results: Vec<SearchRow>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub next_page_token: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default, deserialize_with = "deserialize_optional_i64", skip_serializing_if = "Option::is_none")]
     pub total_results_count: Option<i64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub field_mask: Option<String>,
@@ -22,6 +22,8 @@ pub struct SearchResponse {
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 #[serde(rename_all = "camelCase", default)]
 pub struct SearchRow {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub customer: Option<Customer>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub campaign: Option<crate::types::resources::Campaign>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -68,14 +70,14 @@ pub struct AdGroupAdRow {
 pub struct AdGroupCriterionRow {
     pub resource_name: String,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub criterion_id: Option<i64>,
+    pub criterion_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub keyword: Option<KeywordCriterion>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub status: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ad_group: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default, deserialize_with = "deserialize_optional_i64", skip_serializing_if = "Option::is_none")]
     pub cpc_bid_micros: Option<i64>,
 }
 

@@ -25,7 +25,7 @@ pub async fn handle(
                 if let Some(ca) = &row.conversion_action {
                     println!(
                         "{:<20} {:<40} {:<20} {:<10}",
-                        ca.id.map(|i| i.to_string()).unwrap_or_default(),
+                        ca.id.clone().unwrap_or_default(),
                         ca.name.as_deref().unwrap_or("-"),
                         ca.action_type
                             .as_ref()
@@ -48,7 +48,7 @@ pub async fn handle(
             match rows.first().and_then(|r| r.conversion_action.as_ref()) {
                 None => println!("Conversion action {} not found.", id),
                 Some(ca) => {
-                    println!("ID:     {}", ca.id.map(|i| i.to_string()).unwrap_or_default());
+                    println!("ID:     {}", ca.id.clone().unwrap_or_default());
                     println!("Name:   {}", ca.name.as_deref().unwrap_or("-"));
                     println!(
                         "Type:   {}",

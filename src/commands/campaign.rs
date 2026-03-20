@@ -44,8 +44,7 @@ pub async fn handle(command: &CampaignCommands, client: &GoogleAdsClient, cli: &
                 let metrics = row.metrics.as_ref();
 
                 let id = campaign
-                    .and_then(|c| c.id)
-                    .map(|i| i.to_string())
+                    .and_then(|c| c.id.clone())
                     .unwrap_or_default();
                 let name = campaign
                     .and_then(|c| c.name.as_deref())
@@ -103,7 +102,7 @@ pub async fn handle(command: &CampaignCommands, client: &GoogleAdsClient, cli: &
                 Some(campaign) => {
                     println!("Campaign Details");
                     println!("{}", "=".repeat(40));
-                    println!("ID:           {}", campaign.id.map(|i| i.to_string()).unwrap_or_default());
+                    println!("ID:           {}", campaign.id.clone().unwrap_or_default());
                     println!("Name:         {}", campaign.name.as_deref().unwrap_or("-"));
                     println!(
                         "Status:       {}",

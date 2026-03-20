@@ -46,7 +46,7 @@ pub async fn handle(command: &AdGroupCommands, client: &GoogleAdsClient, cli: &C
 
             for row in &rows {
                 if let Some(ag) = &row.ad_group {
-                    let id = ag.id.map(|v| v.to_string()).unwrap_or_default();
+                    let id = ag.id.clone().unwrap_or_default();
                     let name = ag.name.as_deref().unwrap_or("-");
                     let status = ag
                         .status
@@ -110,7 +110,7 @@ pub async fn handle(command: &AdGroupCommands, client: &GoogleAdsClient, cli: &C
                 Some(ag) => {
                     println!("Ad Group Details");
                     println!("{}", "-".repeat(40));
-                    println!("ID:           {}", ag.id.map(|v| v.to_string()).unwrap_or_default());
+                    println!("ID:           {}", ag.id.clone().unwrap_or_default());
                     println!("Name:         {}", ag.name.as_deref().unwrap_or("-"));
                     println!(
                         "Status:       {}",

@@ -33,8 +33,7 @@ pub async fn run(client: &GoogleAdsClient, cli: &Cli) -> Result<()> {
         let metrics = row.metrics.as_ref();
 
         let id = campaign
-            .and_then(|c| c.id)
-            .map(|i| i.to_string())
+            .and_then(|c| c.id.clone())
             .unwrap_or_default();
         let name = campaign
             .and_then(|c| c.name.as_deref())

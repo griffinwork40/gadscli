@@ -29,16 +29,15 @@ impl ApiRequestBuilder {
     /// Build search request body
     pub fn search_body(
         query: &str,
-        page_size: Option<i32>,
+        _page_size: Option<i32>,
         page_token: Option<&str>,
     ) -> serde_json::Value {
         let mut body = serde_json::json!({
             "query": query,
         });
 
-        if let Some(size) = page_size {
-            body["pageSize"] = serde_json::json!(size);
-        }
+        // Note: pageSize is not supported in Google Ads API v20+.
+        // The search endpoint uses a fixed page size of 10,000 rows.
 
         if let Some(token) = page_token {
             body["pageToken"] = serde_json::json!(token);

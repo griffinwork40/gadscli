@@ -3,7 +3,7 @@
     {
       "campaign": {
         "resourceName": "customers/1234567890/campaigns/101",
-        "id": 101,
+        "id": "101",
         "name": "Active Brand Campaign",
         "status": "ENABLED",
         "advertisingChannelType": "SEARCH"
@@ -12,7 +12,7 @@
     {
       "campaign": {
         "resourceName": "customers/1234567890/campaigns/102",
-        "id": 102,
+        "id": "102",
         "name": "Paused Seasonal Campaign",
         "status": "PAUSED",
         "advertisingChannelType": "DISPLAY"
@@ -21,12 +21,12 @@
     {
       "campaign": {
         "resourceName": "customers/1234567890/campaigns/103",
-        "id": 103,
+        "id": "103",
         "name": "Old Campaign",
         "status": "REMOVED",
         "advertisingChannelType": "SEARCH"
       }
     }
   ],
-  "totalResultsCount": 3
+  "totalResultsCount": "3"
 }

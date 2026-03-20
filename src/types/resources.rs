@@ -1,18 +1,64 @@
 #![allow(dead_code)]
 
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 
 use crate::types::common::{
     AdGroupStatus, AdType, AssetType, BiddingStrategyType, CampaignStatus, CampaignType,
     ConversionActionType, KeywordMatchType,
 };
 
+/// Deserialize a value that may be either a number or a string containing a number.
+/// The Google Ads REST API returns all numeric values as JSON strings.
+pub fn deserialize_optional_i64<'de, D>(deserializer: D) -> Result<Option<i64>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    use serde::de;
+
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum StringOrNum {
+        Int(i64),
+        Float(f64),
+        Str(String),
+    }
+
+    Option::<StringOrNum>::deserialize(deserializer)?
+        .map(|v| match v {
+            StringOrNum::Int(i) => Ok(i),
+            StringOrNum::Float(f) => Ok(f as i64),
+            StringOrNum::Str(s) => s.parse::<i64>().map_err(de::Error::custom),
+        })
+        .transpose()
+}
+
+pub fn deserialize_optional_f64<'de, D>(deserializer: D) -> Result<Option<f64>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    use serde::de;
+
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum StringOrFloat {
+        Float(f64),
+        Str(String),
+    }
+
+    Option::<StringOrFloat>::deserialize(deserializer)?
+        .map(|v| match v {
+            StringOrFloat::Float(f) => Ok(f),
+            StringOrFloat::Str(s) => s.parse::<f64>().map_err(de::Error::custom),
+        })
+        .transpose()
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 #[serde(rename_all = "camelCase", default)]
 pub struct Campaign {
     pub resource_name: String,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub id: Option<i64>,
+    pub id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -34,14 +80,14 @@ pub struct Campaign {
 pub struct AdGroup {
     pub resource_name: String,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub id: Option<i64>,
+    pub id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub status: Option<AdGroupStatus>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub campaign: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default, deserialize_with = "deserialize_optional_i64", skip_serializing_if = "Option::is_none")]
     pub cpc_bid_micros: Option<i64>,
 }
 
@@ -50,7 +96,7 @@ pub struct AdGroup {
 pub struct Ad {
     pub resource_name: String,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub id: Option<i64>,
+    pub id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
     #[serde(rename = "type", skip_serializing_if = "Option::is_none")]
@@ -84,7 +130,7 @@ pub struct AdTextAsset {
 pub struct Keyword {
     pub resource_name: String,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub id: Option<i64>,
+    pub id: Option<String>,
     #[serde(rename = "keyword.text", skip_serializing_if = "Option::is_none")]
     pub text: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -93,7 +139,7 @@ pub struct Keyword {
     pub status: Option<AdGroupStatus>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ad_group: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default, deserialize_with = "deserialize_optional_i64", skip_serializing_if = "Option::is_none")]
     pub cpc_bid_micros: Option<i64>,
 }
 
@@ -102,10 +148,10 @@ pub struct Keyword {
 pub struct Budget {
     pub resource_name: String,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub id: Option<i64>,
+    pub id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default, deserialize_with = "deserialize_optional_i64", skip_serializing_if = "Option::is_none")]
     pub amount_micros: Option<i64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub delivery_method: Option<String>,
@@ -118,14 +164,14 @@ pub struct Budget {
 pub struct BiddingStrategy {
     pub resource_name: String,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub id: Option<i64>,
+    pub id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
     #[serde(rename = "type", skip_serializing_if = "Option::is_none")]
     pub strategy_type: Option<BiddingStrategyType>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default, deserialize_with = "deserialize_optional_i64", skip_serializing_if = "Option::is_none")]
     pub target_cpa_micros: Option<i64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default, deserialize_with = "deserialize_optional_f64", skip_serializing_if = "Option::is_none")]
     pub target_roas: Option<f64>,
 }
 
@@ -134,7 +180,7 @@ pub struct BiddingStrategy {
 pub struct Asset {
     pub resource_name: String,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub id: Option<i64>,
+    pub id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
     #[serde(rename = "type", skip_serializing_if = "Option::is_none")]
@@ -146,7 +192,7 @@ pub struct Asset {
 pub struct Label {
     pub resource_name: String,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub id: Option<i64>,
+    pub id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -167,7 +213,7 @@ pub struct TextLabel {
 pub struct ConversionAction {
     pub resource_name: String,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub id: Option<i64>,
+    pub id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
     #[serde(rename = "type", skip_serializing_if = "Option::is_none")]
@@ -205,30 +251,48 @@ pub struct CustomerClient {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub currency_code: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub id: Option<i64>,
+    pub id: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+#[serde(rename_all = "camelCase", default)]
+pub struct Customer {
+    pub resource_name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub descriptive_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub currency_code: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub time_zone: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub manager: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub status: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 #[serde(rename_all = "camelCase", default)]
 pub struct Metrics {
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default, deserialize_with = "deserialize_optional_i64", skip_serializing_if = "Option::is_none")]
     pub impressions: Option<i64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default, deserialize_with = "deserialize_optional_i64", skip_serializing_if = "Option::is_none")]
     pub clicks: Option<i64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default, deserialize_with = "deserialize_optional_i64", skip_serializing_if = "Option::is_none")]
     pub cost_micros: Option<i64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default, deserialize_with = "deserialize_optional_f64", skip_serializing_if = "Option::is_none")]
     pub conversions: Option<f64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default, deserialize_with = "deserialize_optional_f64", skip_serializing_if = "Option::is_none")]
     pub conversions_value: Option<f64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default, deserialize_with = "deserialize_optional_f64", skip_serializing_if = "Option::is_none")]
     pub ctr: Option<f64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub average_cpc: Option<i64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default, deserialize_with = "deserialize_optional_f64", skip_serializing_if = "Option::is_none")]
+    pub average_cpc: Option<f64>,
+    #[serde(default, deserialize_with = "deserialize_optional_f64", skip_serializing_if = "Option::is_none")]
     pub average_cpm: Option<f64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default, deserialize_with = "deserialize_optional_f64", skip_serializing_if = "Option::is_none")]
     pub all_conversions: Option<f64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default, deserialize_with = "deserialize_optional_f64", skip_serializing_if = "Option::is_none")]
     pub interaction_rate: Option<f64>,
 }

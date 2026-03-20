@@ -61,7 +61,7 @@ pub async fn handle_list(
         if let Some(strategy) = &row.bidding_strategy {
             let id = strategy
                 .id
-                .map(|v| v.to_string())
+                .clone()
                 .unwrap_or_else(|| "-".to_string());
 
             let name = strategy
@@ -127,7 +127,7 @@ pub async fn handle_get(
             println!("Resource Name: {}", strategy.resource_name);
             println!(
                 "ID:            {}",
-                strategy.id.map(|v| v.to_string()).unwrap_or_else(|| "-".to_string())
+                strategy.id.clone().unwrap_or_else(|| "-".to_string())
             );
             println!(
                 "Name:          {}",

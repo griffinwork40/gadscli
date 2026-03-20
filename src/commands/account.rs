@@ -41,7 +41,7 @@ async fn list(client: &GoogleAdsClient, config: &Config) -> Result<()> {
 
     for row in &results {
         if let Some(cc) = &row.customer_client {
-            let id = cc.id.map(|i| i.to_string()).unwrap_or_default();
+            let id = cc.id.clone().unwrap_or_default();
             let name = cc.descriptive_name.as_deref().unwrap_or("(unnamed)");
             let manager = cc.manager.map(|b| if b { "yes" } else { "no" }).unwrap_or("no");
             let currency = cc.currency_code.as_deref().unwrap_or("");
@@ -55,41 +55,38 @@ async fn list(client: &GoogleAdsClient, config: &Config) -> Result<()> {
 async fn info(client: &GoogleAdsClient, config: &Config) -> Result<()> {
     let customer_id = resolve_customer_id(config)?;
 
-    // Query customer info via the REST resource endpoint
-    let url = format!("{}/customers/{}", client.base_url(), customer_id);
-    let response = client.http().execute(reqwest::Method::GET, &url, None).await?;
+    let query = "SELECT customer.id, customer.descriptive_name, customer.currency_code, \
+                 customer.time_zone, customer.manager, customer.status \
+                 FROM customer";
+
+    let results = client.search_all(customer_id, query, None).await?;
 
     println!("Account Information");
     println!("-------------------");
 
-    if let Some(id) = response.get("id").and_then(|v| v.as_str()) {
-        println!("{:<25} {}", "Customer ID:", id);
-    } else if let Some(id) = response.get("id") {
-        println!("{:<25} {}", "Customer ID:", id);
-    }
-
-    if let Some(name) = response.get("descriptiveName").and_then(|v| v.as_str()) {
-        println!("{:<25} {}", "Name:", name);
-    }
-    if let Some(currency) = response.get("currencyCode").and_then(|v| v.as_str()) {
-        println!("{:<25} {}", "Currency:", currency);
-    }
-    if let Some(tz) = response.get("timeZone").and_then(|v| v.as_str()) {
-        println!("{:<25} {}", "Time zone:", tz);
-    }
-    if let Some(status) = response.get("status").and_then(|v| v.as_str()) {
-        println!("{:<25} {}", "Status:", status);
-    }
-    if let Some(manager) = response.get("manager").and_then(|v| v.as_bool()) {
-        println!("{:<25} {}", "Manager account:", if manager { "yes" } else { "no" });
-    }
-    if let Some(auto_tag) = response.get("autoTaggingEnabled").and_then(|v| v.as_bool()) {
-        println!("{:<25} {}", "Auto-tagging:", if auto_tag { "yes" } else { "no" });
-    }
-    if let Some(template) = response.get("trackingUrlTemplate").and_then(|v| v.as_str()) {
-        if !template.is_empty() {
-            println!("{:<25} {}", "Tracking template:", template);
+    if let Some(row) = results.first() {
+        if let Some(customer) = &row.customer {
+            if let Some(id) = &customer.id {
+                println!("{:<25} {}", "Customer ID:", id);
+            }
+            if let Some(name) = &customer.descriptive_name {
+                println!("{:<25} {}", "Name:", name);
+            }
+            if let Some(currency) = &customer.currency_code {
+                println!("{:<25} {}", "Currency:", currency);
+            }
+            if let Some(tz) = &customer.time_zone {
+                println!("{:<25} {}", "Time zone:", tz);
+            }
+            if let Some(status) = &customer.status {
+                println!("{:<25} {}", "Status:", status);
+            }
+            if let Some(manager) = customer.manager {
+                println!("{:<25} {}", "Manager account:", if manager { "yes" } else { "no" });
+            }
         }
+    } else {
+        println!("No account information found.");
     }
 
     Ok(())
@@ -122,7 +119,7 @@ async fn hierarchy(client: &GoogleAdsClient, config: &Config) -> Result<()> {
         if let Some(cc) = &row.customer_client {
             let level = cc.level.unwrap_or(0) as usize;
             let level_str = level.to_string();
-            let id = cc.id.map(|i| i.to_string()).unwrap_or_default();
+            let id = cc.id.clone().unwrap_or_default();
             let name = cc.descriptive_name.as_deref().unwrap_or("(unnamed)");
             let manager = cc.manager.map(|b| if b { "yes" } else { "no" }).unwrap_or("no");
             let currency = cc.currency_code.as_deref().unwrap_or("");

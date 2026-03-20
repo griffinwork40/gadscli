@@ -32,8 +32,7 @@ pub async fn handle(command: &BudgetCommands, client: &GoogleAdsClient, cli: &Cl
                 let budget = row.campaign_budget.as_ref();
 
                 let id = budget
-                    .and_then(|b| b.id)
-                    .map(|i| i.to_string())
+                    .and_then(|b| b.id.clone())
                     .unwrap_or_default();
                 let name = budget
                     .and_then(|b| b.name.as_deref())
@@ -83,7 +82,7 @@ pub async fn handle(command: &BudgetCommands, client: &GoogleAdsClient, cli: &Cl
                 Some(budget) => {
                     println!("Budget Details");
                     println!("{}", "=".repeat(40));
-                    println!("ID:           {}", budget.id.map(|i| i.to_string()).unwrap_or_default());
+                    println!("ID:           {}", budget.id.clone().unwrap_or_default());
                     println!("Name:         {}", budget.name.as_deref().unwrap_or("-"));
                     println!(
                         "Amount/Day:   {}",

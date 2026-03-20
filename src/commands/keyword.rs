@@ -69,7 +69,7 @@ pub async fn handle_list(
         if let Some(criterion) = &row.ad_group_criterion {
             let id = criterion
                 .criterion_id
-                .map(|v| v.to_string())
+                .clone()
                 .unwrap_or_else(|| "-".to_string());
 
             let text = criterion

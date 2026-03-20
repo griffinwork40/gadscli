@@ -43,14 +43,14 @@ fn test_output_format_from_str() {
 fn test_campaign_deserialize() {
     let json = r#"{
         "resourceName": "customers/123/campaigns/456",
-        "id": 456,
+        "id": "456",
         "name": "Test Campaign",
         "status": "ENABLED",
         "advertisingChannelType": "SEARCH"
     }"#;
     let campaign: Campaign = serde_json::from_str(json).unwrap();
     assert_eq!(campaign.resource_name, "customers/123/campaigns/456");
-    assert_eq!(campaign.id, Some(456));
+    assert_eq!(campaign.id, Some("456".to_string()));
     assert_eq!(campaign.name, Some("Test Campaign".to_string()));
     assert_eq!(campaign.status, Some(CampaignStatus::Enabled));
     assert_eq!(campaign.campaign_type, Some(CampaignType::Search));
@@ -60,7 +60,7 @@ fn test_campaign_deserialize() {
 fn test_campaign_serialize_skips_none() {
     let campaign = Campaign {
         resource_name: "customers/123/campaigns/456".to_string(),
-        id: Some(456),
+        id: Some("456".to_string()),
         name: None,
         status: None,
         campaign_type: None,
@@ -82,17 +82,17 @@ fn test_search_response_deserialize() {
             {
                 "campaign": {
                     "resourceName": "customers/123/campaigns/456",
-                    "id": 456,
+                    "id": "456",
                     "name": "Campaign A"
                 },
                 "metrics": {
-                    "impressions": 1000,
-                    "clicks": 50,
-                    "costMicros": 25000000
+                    "impressions": "1000",
+                    "clicks": "50",
+                    "costMicros": "25000000"
                 }
             }
         ],
-        "totalResultsCount": 1
+        "totalResultsCount": "1"
     }"#;
     let response: SearchResponse = serde_json::from_str(json).unwrap();
     assert_eq!(response.results.len(), 1);

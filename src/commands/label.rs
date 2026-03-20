@@ -22,7 +22,7 @@ pub async fn handle(command: &LabelCommands, client: &GoogleAdsClient, cli: &Cli
                 if let Some(label) = &row.label {
                     println!(
                         "{:<20} {:<40} {:<40}",
-                        label.id.map(|i| i.to_string()).unwrap_or_default(),
+                        label.id.clone().unwrap_or_default(),
                         label.name.as_deref().unwrap_or("-"),
                         label.description.as_deref().unwrap_or("-"),
                     );
@@ -39,7 +39,7 @@ pub async fn handle(command: &LabelCommands, client: &GoogleAdsClient, cli: &Cli
             match rows.first().and_then(|r| r.label.as_ref()) {
                 None => println!("Label {} not found.", id),
                 Some(label) => {
-                    println!("ID:          {}", label.id.map(|i| i.to_string()).unwrap_or_default());
+                    println!("ID:          {}", label.id.clone().unwrap_or_default());
                     println!("Name:        {}", label.name.as_deref().unwrap_or("-"));
                     println!("Description: {}", label.description.as_deref().unwrap_or("-"));
                     if let Some(text_label) = &label.text_label {

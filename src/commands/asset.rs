@@ -29,7 +29,7 @@ pub async fn handle(command: &AssetCommands, client: &GoogleAdsClient, cli: &Cli
                 if let Some(asset) = &row.asset {
                     println!(
                         "{:<20} {:<40} {:<20}",
-                        asset.id.map(|i| i.to_string()).unwrap_or_default(),
+                        asset.id.clone().unwrap_or_default(),
                         asset.name.as_deref().unwrap_or("-"),
                         asset
                             .asset_type
@@ -50,7 +50,7 @@ pub async fn handle(command: &AssetCommands, client: &GoogleAdsClient, cli: &Cli
             match rows.first().and_then(|r| r.asset.as_ref()) {
                 None => println!("Asset {} not found.", id),
                 Some(asset) => {
-                    println!("ID:   {}", asset.id.map(|i| i.to_string()).unwrap_or_default());
+                    println!("ID:   {}", asset.id.clone().unwrap_or_default());
                     println!("Name: {}", asset.name.as_deref().unwrap_or("-"));
                     println!(
                         "Type: {}",
