@@ -2,7 +2,25 @@ use crate::cli::{AdCommands, Cli};
 use crate::client::GoogleAdsClient;
 use crate::error::Result;
 use crate::types::operations::MutateOperation;
-use crate::types::resources::{Ad, AdTextAsset, ResponsiveSearchAdInfo};
+
+/// Parse a pin string like "Text:1" into (text, pinned_field)
+/// For headlines: "My Headline:1" -> ("My Headline", "HEADLINE_1")
+/// For descriptions: "My Desc:2" -> ("My Desc", "DESCRIPTION_2")
+pub fn parse_pin(s: &str, prefix: &str) -> Option<(String, String)> {
+    let parts: Vec<&str> = s.rsplitn(2, ':').collect();
+    if parts.len() == 2 {
+        let position = parts[0];
+        let text = parts[1];
+        Some((text.to_string(), format!("{}_{}", prefix, position)))
+    } else {
+        None
+    }
+}
+
+fn ad_resource_name(cid: &str, id: &str) -> String {
+    if id.starts_with("customers/") { id.to_string() }
+    else { format!("customers/{}/adGroupAds/{}", cid, id) }
+}
 
 pub async fn handle(command: &AdCommands, client: &GoogleAdsClient, cli: &Cli) -> Result<()> {
     let cid = client.customer_id(cli.customer_id.as_deref())?;
@@ -157,17 +175,39 @@ pub async fn handle(command: &AdCommands, client: &GoogleAdsClient, cli: &Cli) -
             headlines,
             descriptions,
             final_url,
+            pin_headline,
+            pin_description,
         } => {
-            // Build the AdGroupAd resource as a serde_json::Value so we can nest
-            // `adGroup` and `ad` fields correctly in the mutate request.
+            // Build headline/description assets with optional pinning
+            let pin_h: std::collections::HashMap<String, String> = pin_headline
+                .iter()
+                .filter_map(|p| parse_pin(p, "HEADLINE"))
+                .collect();
+            let pin_d: std::collections::HashMap<String, String> = pin_description
+                .iter()
+                .filter_map(|p| parse_pin(p, "DESCRIPTION"))
+                .collect();
+
             let headline_assets: Vec<serde_json::Value> = headlines
                 .iter()
-                .map(|h| serde_json::json!({ "text": h }))
+                .map(|h| {
+                    let mut asset = serde_json::json!({ "text": h });
+                    if let Some(field) = pin_h.get(h.as_str()) {
+                        asset["pinnedField"] = serde_json::json!(field);
+                    }
+                    asset
+                })
                 .collect();
 
             let description_assets: Vec<serde_json::Value> = descriptions
                 .iter()
-                .map(|d| serde_json::json!({ "text": d }))
+                .map(|d| {
+                    let mut asset = serde_json::json!({ "text": d });
+                    if let Some(field) = pin_d.get(d.as_str()) {
+                        asset["pinnedField"] = serde_json::json!(field);
+                    }
+                    asset
+                })
                 .collect();
 
             let resource = serde_json::json!({
@@ -207,83 +247,36 @@ pub async fn handle(command: &AdCommands, client: &GoogleAdsClient, cli: &Cli) -
             }
         }
 
-        AdCommands::Pause { id } => {
-            // adGroupAd resource name format: customers/{cid}/adGroupAds/{ag_id}~{ad_id}
-            // The caller provides the compound id; we still need the customer prefix.
-            let resource_name = if id.starts_with("customers/") {
-                id.clone()
+        AdCommands::Pause { id } | AdCommands::Enable { id } => {
+            let (status, verb) = if matches!(command, AdCommands::Pause { .. }) {
+                ("PAUSED", "paused")
             } else {
-                format!("customers/{}/adGroupAds/{}", cid, id)
+                ("ENABLED", "enabled")
             };
-
-            let resource = serde_json::json!({
-                "resourceName": resource_name,
-                "status": "PAUSED"
-            });
-
+            let resource_name = ad_resource_name(&cid, id);
+            let resource = serde_json::json!({ "resourceName": resource_name, "status": status });
             let ops: Vec<MutateOperation<serde_json::Value>> = vec![MutateOperation {
-                create: None,
-                update: Some(resource),
-                remove: None,
+                create: None, update: Some(resource), remove: None,
                 update_mask: Some("status".into()),
             }];
-
             if cli.dry_run {
-                println!("[dry-run] Would pause ad {}.", id);
+                println!("[dry-run] Would {} ad {}.", verb, id);
                 return Ok(());
             }
-
             client.mutate(&cid, "adGroupAds", ops, false, false).await?;
-            println!("Ad {} paused.", id);
-        }
-
-        AdCommands::Enable { id } => {
-            let resource_name = if id.starts_with("customers/") {
-                id.clone()
-            } else {
-                format!("customers/{}/adGroupAds/{}", cid, id)
-            };
-
-            let resource = serde_json::json!({
-                "resourceName": resource_name,
-                "status": "ENABLED"
-            });
-
-            let ops: Vec<MutateOperation<serde_json::Value>> = vec![MutateOperation {
-                create: None,
-                update: Some(resource),
-                remove: None,
-                update_mask: Some("status".into()),
-            }];
-
-            if cli.dry_run {
-                println!("[dry-run] Would enable ad {}.", id);
-                return Ok(());
-            }
-
-            client.mutate(&cid, "adGroupAds", ops, false, false).await?;
-            println!("Ad {} enabled.", id);
+            println!("Ad {} {}.", id, verb);
         }
 
         AdCommands::Remove { id } => {
-            let resource_name = if id.starts_with("customers/") {
-                id.clone()
-            } else {
-                format!("customers/{}/adGroupAds/{}", cid, id)
-            };
-
+            let resource_name = ad_resource_name(&cid, id);
             let ops: Vec<MutateOperation<serde_json::Value>> = vec![MutateOperation {
-                create: None,
-                update: None,
-                remove: Some(resource_name.clone()),
-                update_mask: None,
+                create: None, update: None,
+                remove: Some(resource_name.clone()), update_mask: None,
             }];
-
             if cli.dry_run {
                 println!("[dry-run] Would remove ad {}.", id);
                 return Ok(());
             }
-
             client.mutate(&cid, "adGroupAds", ops, false, false).await?;
             println!("Ad {} removed.", id);
         }
@@ -292,10 +285,3 @@ pub async fn handle(command: &AdCommands, client: &GoogleAdsClient, cli: &Cli) -
     Ok(())
 }
 
-// Suppress unused import warnings for types that may be used by the merge integrator
-#[allow(dead_code)]
-fn _type_check() {
-    let _: Option<Ad> = None;
-    let _: Option<AdTextAsset> = None;
-    let _: Option<ResponsiveSearchAdInfo> = None;
-}

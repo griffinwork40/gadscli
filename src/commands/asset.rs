@@ -130,6 +130,102 @@ pub async fn handle(command: &AssetCommands, client: &GoogleAdsClient, cli: &Cli
                 .await?;
             println!("Removed asset: {}", resource_name);
         }
+
+        AssetCommands::Link {
+            campaign_id,
+            asset_id,
+            field_type,
+        } => {
+            if cli.dry_run {
+                println!(
+                    "[dry-run] Would link asset {} to campaign {} with field type {}.",
+                    asset_id, campaign_id, field_type
+                );
+                return Ok(());
+            }
+
+            let url = format!(
+                "{}/customers/{}/campaignAssets:mutate",
+                client.base_url(),
+                customer_id
+            );
+            let request_body = serde_json::json!({
+                "operations": [{
+                    "create": {
+                        "campaign": format!("customers/{}/campaigns/{}", customer_id, campaign_id),
+                        "asset": format!("customers/{}/assets/{}", customer_id, asset_id),
+                        "fieldType": field_type.to_uppercase(),
+                    }
+                }]
+            });
+
+            let response = client
+                .http()
+                .execute(reqwest::Method::POST, &url, Some(request_body))
+                .await?;
+
+            let resource_name = response
+                .get("results")
+                .and_then(|r| r.as_array())
+                .and_then(|a| a.first())
+                .and_then(|r| r.get("resourceName"))
+                .and_then(|v| v.as_str())
+                .unwrap_or("unknown");
+
+            println!("Linked asset: {}", resource_name);
+        }
+
+        AssetCommands::Unlink { id } => {
+            if cli.dry_run {
+                println!("[dry-run] Would unlink campaign asset {}.", id);
+                return Ok(());
+            }
+
+            let resource_name = format!("customers/{}/campaignAssets/{}", customer_id, id);
+            let url = format!(
+                "{}/customers/{}/campaignAssets:mutate",
+                client.base_url(),
+                customer_id
+            );
+            let request_body = serde_json::json!({
+                "operations": [{ "remove": resource_name }]
+            });
+
+            client
+                .http()
+                .execute(reqwest::Method::POST, &url, Some(request_body))
+                .await?;
+
+            println!("Unlinked campaign asset: {}", resource_name);
+        }
+
+        AssetCommands::ListLinked { campaign_id } => {
+            let query = format!(
+                "SELECT campaign_asset.resource_name, campaign_asset.asset, campaign_asset.field_type, campaign_asset.status \
+                 FROM campaign_asset \
+                 WHERE campaign_asset.campaign = 'customers/{}/campaigns/{}'",
+                customer_id, campaign_id
+            );
+
+            let rows = client.search_all(&customer_id, &query, Some(1000)).await?;
+            if rows.is_empty() {
+                println!("No linked assets found for campaign {}.", campaign_id);
+                return Ok(());
+            }
+            println!("{:<50} {:<50} {:<20} {:<10}", "Resource", "Asset", "Field Type", "Status");
+            println!("{}", "-".repeat(130));
+            for row in &rows {
+                if let Some(ca) = &row.campaign_asset {
+                    println!(
+                        "{:<50} {:<50} {:<20} {:<10}",
+                        ca.resource_name,
+                        ca.asset.as_deref().unwrap_or("-"),
+                        ca.field_type.as_deref().unwrap_or("-"),
+                        ca.status.as_deref().unwrap_or("-"),
+                    );
+                }
+            }
+        }
     }
 
     Ok(())

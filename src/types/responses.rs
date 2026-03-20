@@ -3,8 +3,12 @@
 use serde::{Deserialize, Serialize};
 
 use crate::types::resources::{
-    deserialize_optional_i64, Ad, AdGroup, Asset, BiddingStrategy, Budget, ConversionAction,
-    Customer, CustomerClient, Label, Metrics, Recommendation,
+    deserialize_optional_f64, deserialize_optional_i64, Ad, AdGroup, Asset, BiddingStrategy,
+    Budget, ConversionAction, Customer, CustomerClient, Label, Metrics, Recommendation,
+};
+use crate::types::responses_ext::{
+    CampaignAssetRow, CampaignSharedSetRow, GeoTargetConstantRow, LocationInfo, DeviceInfo,
+    AdScheduleInfo, UserListInfo, SearchTermViewRow, SharedCriterionRow, SharedSet,
 };
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
@@ -46,10 +50,24 @@ pub struct SearchRow {
     pub recommendation: Option<Recommendation>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub customer_client: Option<CustomerClient>,
+    #[serde(rename = "campaignCriterion", skip_serializing_if = "Option::is_none")]
+    pub campaign_criterion: Option<CampaignCriterionRow>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub metrics: Option<Metrics>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub segments: Option<serde_json::Value>,
+    #[serde(rename = "campaignAsset", skip_serializing_if = "Option::is_none")]
+    pub campaign_asset: Option<CampaignAssetRow>,
+    #[serde(rename = "sharedSet", skip_serializing_if = "Option::is_none")]
+    pub shared_set: Option<SharedSet>,
+    #[serde(rename = "sharedCriterion", skip_serializing_if = "Option::is_none")]
+    pub shared_criterion: Option<SharedCriterionRow>,
+    #[serde(rename = "campaignSharedSet", skip_serializing_if = "Option::is_none")]
+    pub campaign_shared_set: Option<CampaignSharedSetRow>,
+    #[serde(rename = "searchTermView", skip_serializing_if = "Option::is_none")]
+    pub search_term_view: Option<SearchTermViewRow>,
+    #[serde(rename = "geoTargetConstant", skip_serializing_if = "Option::is_none")]
+    pub geo_target_constant: Option<GeoTargetConstantRow>,
 }
 
 /// Wrapper for an ad inside a search row (adGroupAd contains the ad nested)
@@ -79,6 +97,35 @@ pub struct AdGroupCriterionRow {
     pub ad_group: Option<String>,
     #[serde(default, deserialize_with = "deserialize_optional_i64", skip_serializing_if = "Option::is_none")]
     pub cpc_bid_micros: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub negative: Option<bool>,
+}
+
+/// Wrapper for a campaign-level criterion inside a search row
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+#[serde(rename_all = "camelCase", default)]
+pub struct CampaignCriterionRow {
+    pub resource_name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub criterion_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub keyword: Option<KeywordCriterion>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub negative: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub campaign: Option<String>,
+    #[serde(default, deserialize_with = "deserialize_optional_f64", skip_serializing_if = "Option::is_none")]
+    pub bid_modifier: Option<f64>,
+    #[serde(rename = "type", skip_serializing_if = "Option::is_none")]
+    pub criterion_type: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub location: Option<LocationInfo>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub device: Option<DeviceInfo>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ad_schedule: Option<AdScheduleInfo>,
+    #[serde(rename = "userList", skip_serializing_if = "Option::is_none")]
+    pub user_list: Option<UserListInfo>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
