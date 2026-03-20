@@ -1,0 +1,28 @@
+{
+  "name": "@griffinwork40/gadscli",
+  "version": "0.1.6",
+  "description": "A fast, ergonomic CLI for the Google Ads API, written in Rust.",
+  "license": "MIT",
+  "bin": {
+    "gadscli": "src/index.js"
+  },
+  "files": [
+    "src",
+    "bin"
+  ],
+  "keywords": [
+    "google-ads",
+    "google-ads-api",
+    "cli",
+    "gaql",
+    "ppc",
+    "advertising"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/graisol/google-ads-cli"
+  },
+  "engines": {
+    "node": ">=14"
+  }
+}
