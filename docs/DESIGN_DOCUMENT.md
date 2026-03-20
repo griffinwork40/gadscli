@@ -1,0 +1,263 @@
+# gadscli — Design Document
+
+**Google Ads CLI Tool**
+**Version:** 0.1.4
+**Date:** March 2026
+**Author:** Griffin Long
+
+---
+
+## 1. Overview
+
+**gadscli** is a command-line interface for the Google Ads API, written in Rust. It enables advertisers, agencies, and developers to manage Google Ads accounts directly from the terminal — creating campaigns, running performance reports, managing keywords, adjusting budgets and bids, and more — without writing custom API integration code.
+
+The tool targets a single-user, interactive workflow. A single user authenticates with their own Google Ads credentials and manages the accounts they have access to. There is no multi-tenant usage, no data storage beyond local configuration, and no automated bulk account processing.
+
+## 2. Purpose and Use Case
+
+### Problem
+
+Managing Google Ads through the web UI is effective for one-off changes, but becomes inefficient for repetitive tasks: pulling weekly reports, pausing underperforming campaigns, auditing keyword quality scores, or scripting account maintenance across multiple client accounts under an MCC.
+
+The Google Ads API is powerful but requires significant boilerplate — authentication, HTTP client setup, request construction, response parsing, pagination — before a single query can run.
+
+### Solution
+
+gadscli wraps the Google Ads REST/JSON API (not gRPC) behind a simple CLI interface. A user can:
+
+- **Query data** with raw GAQL or pre-built report templates
+- **Manage resources** (campaigns, ad groups, ads, keywords, budgets, bidding strategies, assets, conversions, labels)
+- **Review recommendations** and apply or dismiss them
+- **Export results** in table, JSON, CSV, or YAML formats for downstream processing
+
+### Target Users
+
+- **Individual advertisers** managing their own accounts
+- **Agency account managers** working across client accounts under an MCC
+- **Developers and SREs** scripting Google Ads operations in CI/CD or automation pipelines
+
+### Scope of API Usage
+
+gadscli uses the following Google Ads API services:
+
+| Service | Operations | Purpose |
+|---------|-----------|---------|
+| GoogleAdsService.Search | Read | GAQL queries, reports, list operations |
+| CampaignService | Read/Write | Campaign CRUD, pause/enable/remove |
+| AdGroupService | Read/Write | Ad group CRUD, pause/enable/remove |
+| AdGroupAdService | Read/Write | Ad creation, pause/enable/remove |
+| AdGroupCriterionService | Read/Write | Keyword add/update/remove |
+| CampaignBudgetService | Read/Write | Budget CRUD |
+| BiddingStrategyService | Read/Write | Bidding strategy CRUD |
+| AssetService | Read/Write | Asset creation and removal |
+| ConversionActionService | Read/Write | Conversion action CRUD |
+| ConversionUploadService | Write | Offline conversion uploads |
+| LabelService | Read/Write | Label CRUD and assignment |
+| RecommendationService | Read/Write | List, apply, dismiss recommendations |
+| BatchJobService | Read/Write | Batch job creation and execution |
+| GoogleAdsFieldService | Read | Field metadata queries |
+| CustomerService | Read | Account info and hierarchy |
+
+All operations are initiated by the authenticated user on-demand. There is no background polling, scheduled execution, or automated mutation without explicit user action.
+
+## 3. Architecture
+
+### High-Level Design
+
+```
+┌──────────────────────────────────────────────────┐
+│                   CLI Layer                       │
+│  (clap derive structs — 16 command groups)        │
+└──────────────┬───────────────────────────────────┘
+               │
+┌──────────────▼───────────────────────────────────┐
+│              Command Handlers                     │
+│  (src/commands/ — one module per command group)    │
+└──────────────┬───────────────────────────────────┘
+               │
+┌──────────────▼───────────────────────────────────┐
+│            GoogleAdsClient                        │
+│  ┌─────────────┐  ┌────────────┐  ┌───────────┐  │
+│  │ HttpClient   │  │ RateLimiter│  │ Request   │  │
+│  │ (reqwest)    │  │ (token     │  │ Builder   │  │
+│  │              │  │  bucket)   │  │ (GAQL)    │  │
+│  └──────┬──────┘  └────────────┘  └───────────┘  │
+│         │                                         │
+│  ┌──────▼──────┐                                  │
+│  │ AuthProvider │ ← OAuth2 / Service Account      │
+│  └─────────────┘                                  │
+└──────────────────────────────────────────────────┘
+               │
+               ▼
+   Google Ads REST API (v20)
+   https://googleads.googleapis.com/v20/
+```
+
+### Module Structure
+
+| Module | Responsibility |
+|--------|---------------|
+| `src/cli.rs` | Clap derive structs for all commands and arguments |
+| `src/commands/` | 16 command handler modules (one per resource type) |
+| `src/auth/` | AuthProvider trait, OAuth2 flow, service account JWT, token caching |
+| `src/client/` | HTTP client with retry logic, rate limiter, request builder |
+| `src/config.rs` | TOML config with profiles, environment variable overrides |
+| `src/gaql/` | GAQL query builder, parser, 9 pre-built report templates |
+| `src/helpers/` | 7 high-level helper commands (audit, budget-check, etc.) |
+| `src/output/` | Formatters for JSON, table, CSV, YAML output |
+| `src/types/` | All API resource structs, enums, operations, responses |
+| `src/error.rs` | Error types with structured API error parsing and exit codes |
+| `src/util/` | Resource name parsing, field masks, pagination utilities |
+
+### Data Flow
+
+1. User runs a command (e.g., `gadscli campaign list --status ENABLED`)
+2. CLI layer parses arguments via clap
+3. Config is loaded from `~/.config/gadscli/config.toml` with env var overrides
+4. AuthProvider obtains an access token (cached or refreshed via OAuth2)
+5. Command handler constructs the appropriate API request (GAQL query or mutate)
+6. HttpClient sends the request with auth headers, developer token, and login-customer-id
+7. Response is parsed from JSON into typed Rust structs
+8. Output formatter renders results in the requested format (table/JSON/CSV/YAML)
+
+## 4. Authentication
+
+gadscli supports three authentication methods:
+
+### OAuth2 (Primary)
+
+The standard flow for interactive use:
+
+1. User runs `gadscli auth login`
+2. A local HTTP server starts and a browser window opens to Google's OAuth consent screen
+3. User grants access; the authorization code is exchanged for a refresh token
+4. The refresh token is stored locally at `~/.config/gadscli/credentials.enc`
+5. On subsequent API calls, the refresh token is exchanged for a short-lived access token (cached ~1 hour)
+
+### Service Account
+
+For server-to-server / CI/CD use:
+
+1. User provides a service account JSON key file path
+2. A JWT is signed and exchanged for an access token
+3. Optional domain-wide delegation via subject impersonation
+
+### Direct Access Token
+
+For quick testing: user provides a pre-obtained access token via environment variable.
+
+### Credential Storage
+
+- Non-secret settings: `~/.config/gadscli/config.toml` (plaintext TOML)
+- Sensitive credentials: `~/.config/gadscli/credentials.enc`
+- All values can be overridden via `GADS_*` environment variables
+- No credentials are transmitted to any service other than Google's OAuth and API endpoints
+
+## 5. API Interaction Details
+
+### Request Pattern
+
+All API calls go through a single `HttpClient.execute()` method which:
+
+1. Acquires a rate limiter token (100 requests/minute)
+2. Attaches `Authorization: Bearer <token>`, `developer-token`, and optionally `login-customer-id` headers
+3. Sends the request via reqwest (with rustls-tls)
+4. Retries on 429 (rate limit) and 503 (service unavailable) with exponential backoff (up to 3 retries)
+5. Parses the JSON response and returns structured data or a typed error
+
+### Rate Limiting
+
+A token-bucket rate limiter limits outbound requests to 100/minute to stay within Google Ads API quotas. This is enforced client-side before requests are sent.
+
+### Pagination
+
+List operations default to 1,000 results per page. The `--page-all` flag enables automatic pagination, fetching all pages transparently by following `nextPageToken` values.
+
+### Mutations
+
+All write operations (create, update, remove) go through the standard mutate endpoint for the resource type. The `--dry-run` flag sets `validateOnly: true` on the request, allowing validation without execution.
+
+### Error Handling
+
+API errors are parsed from the structured JSON error response, extracting:
+- HTTP status code
+- Error message
+- Detailed error codes (e.g., `INVALID_CUSTOMER_ID`, `USER_PERMISSION_DENIED`)
+- Field paths and triggers when available
+
+Errors are displayed to the user with actionable context and the process exits with a meaningful exit code.
+
+## 6. Security Considerations
+
+- **No data persistence beyond config**: gadscli does not store API response data. All results are output to stdout and not cached or logged.
+- **Credential isolation**: Sensitive credentials (refresh tokens, client secrets) are stored locally and never transmitted except to Google's token endpoint.
+- **TLS only**: All API communication uses HTTPS via rustls. No plaintext HTTP.
+- **No third-party services**: gadscli communicates only with `googleapis.com` endpoints. No telemetry, analytics, or third-party data sharing.
+- **Dry-run safety**: Mutation commands support `--dry-run` to validate without making changes, reducing risk of accidental modifications.
+- **MCC access control**: The `--login-customer-id` header ensures proper authorization scoping when accessing client accounts through a manager account.
+
+## 7. Technology Stack
+
+| Component | Technology |
+|-----------|-----------|
+| Language | Rust 1.94+ |
+| CLI framework | clap 4 (derive macros) |
+| HTTP client | reqwest (with rustls-tls) |
+| Async runtime | tokio |
+| Serialization | serde, serde_json |
+| Table output | comfy-table |
+| Colored output | colored |
+| Config format | TOML (via serde) |
+
+### Build and Test
+
+```bash
+cargo build          # Compile
+cargo test           # 64 tests (unit + integration)
+cargo install --path . # Install binary
+```
+
+## 8. Command Reference Summary
+
+gadscli provides 16 command groups with 60+ subcommands:
+
+| Command Group | Subcommands | Description |
+|---------------|-------------|-------------|
+| `auth` | login, logout, status, whoami | Authentication management |
+| `config` | set, get, list, init | Configuration management |
+| `account` | list, info, hierarchy | Account information |
+| `campaign` | list, get, create, update, pause, enable, remove | Campaign CRUD |
+| `ad-group` | list, get, create, update, pause, enable, remove | Ad group CRUD |
+| `ad` | list, get, create, pause, enable, remove | Ad management |
+| `keyword` | list, add, update, remove | Keyword management |
+| `budget` | list, get, create, update, remove | Budget CRUD |
+| `bidding` | list, get, create, update, remove | Bidding strategy CRUD |
+| `report` | query, run, templates | GAQL queries and reports |
+| `asset` | list, get, create, remove | Asset management |
+| `conversion` | list, get, create, update, upload | Conversion actions + offline uploads |
+| `label` | list, get, create, update, remove, assign | Label management |
+| `recommendation` | list, apply, dismiss | Optimization recommendations |
+| `batch` | create, run, status, results | Batch job management |
+| `field` | search, list | API field metadata |
+
+### Pre-Built Report Templates
+
+9 report templates for common queries:
+
+- `campaign-performance` — Campaign metrics with spend, clicks, conversions
+- `ad-group-performance` — Ad group level metrics
+- `keyword-performance` — Keyword metrics with quality score
+- `search-terms` — Actual search queries that triggered ads
+- `quality-score` — Quality score breakdown by keyword
+- `account-summary` — Overall account performance
+- `geographic-performance` — Performance by location
+- `device-performance` — Performance by device type
+- `hourly-performance` — Performance by hour of day
+
+## 9. Compliance
+
+- **Single-user tool**: gadscli is used by individual authenticated users managing their own accounts. It does not aggregate data across unrelated accounts or users.
+- **No data storage or sharing**: API responses are rendered to the terminal and not persisted, cached, or forwarded to any third party.
+- **User-initiated only**: All API calls are triggered by explicit user commands. There is no background data collection, scraping, or automated polling.
+- **Google Ads API Terms**: Usage complies with the Google Ads API Terms and Conditions. The tool does not circumvent any API restrictions or rate limits.
+- **Open source**: The tool is available under the MIT license for review and audit.

@@ -5,6 +5,7 @@ pub mod cli;
 pub mod client;
 pub mod commands;
 pub mod config;
+pub mod editor;
 pub mod error;
 pub mod gaql;
 pub mod helpers;

@@ -1,0 +1,160 @@
+name: Build and Publish to npm
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  test:
+    name: Run tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-test-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-test-
+
+      - name: Run tests
+        run: cargo test
+
+  build:
+    name: Build - ${{ matrix.target }}
+    needs: test
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: aarch64-apple-darwin
+            runner: macos-latest
+            bin-name: gadscli-darwin-arm64
+            src-binary: gadscli
+            use-cross: false
+
+          - target: x86_64-apple-darwin
+            runner: macos-latest
+            bin-name: gadscli-darwin-x64
+            src-binary: gadscli
+            use-cross: false
+
+          - target: x86_64-unknown-linux-gnu
+            runner: ubuntu-latest
+            bin-name: gadscli-linux-x64-gnu
+            src-binary: gadscli
+            use-cross: false
+
+          - target: aarch64-unknown-linux-gnu
+            runner: ubuntu-latest
+            bin-name: gadscli-linux-arm64-gnu
+            src-binary: gadscli
+            use-cross: true
+
+          - target: x86_64-pc-windows-msvc
+            runner: windows-latest
+            bin-name: gadscli-win32-x64-msvc
+            src-binary: gadscli.exe
+            use-cross: false
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ matrix.target }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-${{ matrix.target }}-
+
+      - name: Install cross
+        if: matrix.use-cross
+        run: cargo install cross --git https://github.com/cross-rs/cross
+
+      - name: Build with cross
+        if: matrix.use-cross
+        run: cross build --release --target ${{ matrix.target }}
+
+      - name: Build with cargo
+        if: ${{ !matrix.use-cross }}
+        run: cargo build --release --target ${{ matrix.target }}
+
+      - name: Rename binary
+        shell: bash
+        run: |
+          ext=""
+          if [[ "${{ matrix.target }}" == *"windows"* ]]; then ext=".exe"; fi
+          cp "target/${{ matrix.target }}/release/${{ matrix.src-binary }}" "${{ matrix.bin-name }}${ext}"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.bin-name }}
+          path: ${{ matrix.bin-name }}*
+          if-no-files-found: error
+
+  publish:
+    name: Publish to npm
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: https://registry.npmjs.org
+
+      - name: Extract version from tag
+        id: version
+        run: echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Place binaries
+        run: |
+          mkdir -p npm/gadscli/bin
+          for dir in artifacts/*/; do
+            name=$(basename "$dir")
+            file=$(ls "$dir")
+            cp "$dir/$file" "npm/gadscli/bin/$file"
+            chmod +x "npm/gadscli/bin/$file"
+          done
+          ls -la npm/gadscli/bin/
+
+      - name: Update version
+        run: |
+          VERSION="${{ steps.version.outputs.VERSION }}"
+          jq --arg v "$VERSION" '.version = $v' npm/gadscli/package.json > tmp.json && mv tmp.json npm/gadscli/package.json
+
+      - name: Publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish npm/gadscli --access public

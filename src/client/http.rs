@@ -62,10 +62,24 @@ impl HttpClient {
                 ));
             }
 
-            let response_body: serde_json::Value = response
-                .json()
+            let response_text = response
+                .text()
                 .await
-                .map_err(|e| GadsError::Http(format!("Failed to parse response body: {}", e)))?;
+                .map_err(|e| GadsError::Http(format!("Failed to read response body: {}", e)))?;
+
+            if std::env::var("GADS_DEBUG").is_ok() {
+                eprintln!("[DEBUG] Status: {}", status);
+                eprintln!("[DEBUG] Response ({} bytes): {}", response_text.len(), &response_text[..response_text.len().min(2000)]);
+            }
+
+            let response_body: serde_json::Value = serde_json::from_str(&response_text)
+                .map_err(|e| {
+                    if response_text.starts_with('<') {
+                        GadsError::Http(format!("Server returned HTML instead of JSON (status {}). Check your API version.", status))
+                    } else {
+                        GadsError::Http(format!("Failed to parse response body: {}", e))
+                    }
+                })?;
 
             if status >= 400 {
                 return Err(Self::parse_error(status, &response_body));

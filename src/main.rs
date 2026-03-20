@@ -5,6 +5,7 @@ pub mod cli;
 pub mod client;
 pub mod commands;
 pub mod config;
+pub mod editor;
 pub mod error;
 pub mod gaql;
 pub mod helpers;
@@ -46,6 +47,9 @@ async fn run(cli: Cli) -> error::Result<()> {
     match &cli.command {
         Commands::Auth { command } => return commands::auth_cmd::handle(command, &config).await,
         Commands::Config { command } => return commands::config_cmd::handle(command, &mut config),
+        Commands::Editor { command } => {
+            return commands::editor_cmd::handle(command, &cli, &config).await
+        }
         _ => {}
     }
 

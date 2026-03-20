@@ -4,7 +4,7 @@ use tempfile::TempDir;
 #[test]
 fn test_config_default_values() {
     let config = Config::default();
-    assert_eq!(config.api_version, "18");
+    assert_eq!(config.api_version, "20");
     assert_eq!(config.page_size, 1000);
     assert_eq!(config.output_format, "table");
     assert!(config.customer_id.is_none());
@@ -29,7 +29,7 @@ fn test_config_save_and_load() {
 fn test_config_load_nonexistent() {
     let path = std::path::PathBuf::from("/tmp/nonexistent_gadscli_config.toml");
     let config = Config::load_from(&path).unwrap();
-    assert_eq!(config.api_version, "18"); // defaults
+    assert_eq!(config.api_version, "20"); // defaults
 }
 
 #[test]

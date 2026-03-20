@@ -14,6 +14,7 @@ pub mod label;
 pub mod recommendation;
 pub mod batch;
 pub mod field;
+pub mod editor_cmd;
 
 use crate::cli::{Cli, Commands};
 use crate::client::GoogleAdsClient;
@@ -22,7 +23,7 @@ use crate::error::Result;
 
 pub async fn dispatch(cli: &Cli, client: &GoogleAdsClient, config: &Config) -> Result<()> {
     match &cli.command {
-        Commands::Auth { .. } | Commands::Config { .. } => unreachable!(),
+        Commands::Auth { .. } | Commands::Config { .. } | Commands::Editor { .. } => unreachable!(),
         Commands::Account { command } => account::handle(command, client, config).await,
         Commands::Campaign { command } => campaign::handle(command, client, cli).await,
         Commands::AdGroup { command } => ad_group::handle(command, client, cli).await,

@@ -5,11 +5,22 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 
 /// Default API version
-const DEFAULT_API_VERSION: &str = "18";
+const DEFAULT_API_VERSION: &str = "20";
 /// Default page size for search queries
 const DEFAULT_PAGE_SIZE: i32 = 1000;
 /// Default output format
 const DEFAULT_OUTPUT_FORMAT: &str = "table";
+
+/// Editor-specific configuration
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct EditorConfig {
+    /// Path to the Google Ads Editor binary (overrides auto-detection)
+    pub binary_path: Option<String>,
+    /// Email address for Editor authentication
+    pub user_email: Option<String>,
+    /// Directory for Editor log files
+    pub log_dir: Option<String>,
+}
 
 /// Application configuration loaded from ~/.config/gadscli/config.toml
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -41,6 +52,8 @@ pub struct Config {
     pub api_version: String,
     /// Named profiles
     pub profiles: HashMap<String, Profile>,
+    /// Editor-specific configuration
+    pub editor: Option<EditorConfig>,
 }
 
 /// A named profile that overrides specific config values
@@ -58,6 +71,7 @@ pub struct Profile {
     pub output_format: Option<String>,
     pub page_size: Option<i32>,
     pub api_version: Option<String>,
+    pub editor: Option<EditorConfig>,
 }
 
 impl Default for Config {
@@ -76,6 +90,7 @@ impl Default for Config {
             page_size: DEFAULT_PAGE_SIZE,
             api_version: DEFAULT_API_VERSION.to_string(),
             profiles: HashMap::new(),
+            editor: None,
         }
     }
 }
@@ -168,6 +183,18 @@ impl Config {
         if let Ok(val) = std::env::var("GADS_SERVICE_ACCOUNT_SUBJECT") {
             self.service_account_subject = Some(val);
         }
+        // Editor overrides
+        let editor_binary = std::env::var("GADS_EDITOR_BINARY").ok();
+        let editor_email = std::env::var("GADS_EDITOR_EMAIL").ok();
+        if editor_binary.is_some() || editor_email.is_some() {
+            let editor = self.editor.get_or_insert_with(EditorConfig::default);
+            if let Some(val) = editor_binary {
+                editor.binary_path = Some(val);
+            }
+            if let Some(val) = editor_email {
+                editor.user_email = Some(val);
+            }
+        }
     }
 
     /// Apply a named profile's overrides
@@ -188,6 +215,9 @@ impl Config {
         if let Some(v) = profile.output_format { self.output_format = v; }
         if let Some(v) = profile.page_size { self.page_size = v; }
         if let Some(v) = profile.api_version { self.api_version = v; }
+        if let Some(editor) = profile.editor {
+            self.editor = Some(editor);
+        }
 
         Ok(())
     }
@@ -272,7 +302,7 @@ mod tests {
     #[test]
     fn test_default_config() {
         let config = Config::default();
-        assert_eq!(config.api_version, "18");
+        assert_eq!(config.api_version, "20");
         assert_eq!(config.page_size, 1000);
         assert_eq!(config.output_format, "table");
     }

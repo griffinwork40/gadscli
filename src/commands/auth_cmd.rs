@@ -2,6 +2,8 @@ use crate::cli::AuthCommands;
 use crate::config::Config;
 use crate::error::{GadsError, Result};
 use dialoguer::{Input, Password};
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::net::TcpListener;
 
 const GOOGLE_AUTH_URL: &str = "https://accounts.google.com/o/oauth2/v2/auth";
 const GOOGLE_TOKEN_URL: &str = "https://oauth2.googleapis.com/token";
@@ -31,27 +33,35 @@ async fn login(config: &Config) -> Result<()> {
         .interact()
         .map_err(|e| GadsError::Auth(format!("Input error: {e}")))?;
 
+    // Bind a local server to receive the OAuth2 callback
+    let listener = TcpListener::bind("127.0.0.1:8085")
+        .await
+        .map_err(|e| GadsError::Auth(format!("Failed to bind local server on port 8085: {e}")))?;
+    let redirect_uri = "http://localhost:8085".to_string();
+
     // Build the authorization URL
     let auth_url = format!(
-        "{}?client_id={}&redirect_uri=urn:ietf:wg:oauth:2.0:oob&scope={}&response_type=code&access_type=offline&prompt=consent",
+        "{}?client_id={}&redirect_uri={}&scope={}&response_type=code&access_type=offline&prompt=consent",
         GOOGLE_AUTH_URL,
         urlencoding(&client_id),
+        urlencoding(&redirect_uri),
         urlencoding(GOOGLE_SCOPES),
     );
 
-    println!("\nVisit the following URL to authorize this application:");
-    println!("\n  {}\n", auth_url);
+    println!("\nOpening browser for authorization...");
+    if open_browser(&auth_url).is_err() {
+        println!("Could not open browser. Visit the following URL manually:");
+        println!("\n  {}\n", auth_url);
+    }
 
-    let auth_code: String = Input::new()
-        .with_prompt("Paste the authorization code here")
-        .interact_text()
-        .map_err(|e| GadsError::Auth(format!("Input error: {e}")))?;
-
-    let auth_code = auth_code.trim().to_string();
+    // Wait for the OAuth2 callback
+    println!("Waiting for authorization...");
+    let auth_code = wait_for_callback(listener).await?;
 
     // Exchange authorization code for tokens
     println!("Exchanging authorization code for tokens...");
-    let refresh_token = exchange_code_for_token(&client_id, &client_secret, &auth_code).await?;
+    let refresh_token =
+        exchange_code_for_token(&client_id, &client_secret, &auth_code, &redirect_uri).await?;
 
     // Save credentials to config
     let mut updated_config = config.clone();
@@ -64,10 +74,98 @@ async fn login(config: &Config) -> Result<()> {
     Ok(())
 }
 
+fn open_browser(url: &str) -> std::result::Result<(), ()> {
+    #[cfg(target_os = "macos")]
+    let status = std::process::Command::new("open").arg(url).status();
+    #[cfg(target_os = "linux")]
+    let status = std::process::Command::new("xdg-open").arg(url).status();
+    #[cfg(target_os = "windows")]
+    let status = std::process::Command::new("cmd").args(["/C", "start", url]).status();
+
+    match status {
+        Ok(s) if s.success() => Ok(()),
+        _ => Err(()),
+    }
+}
+
+async fn wait_for_callback(listener: TcpListener) -> Result<String> {
+    let (mut stream, _) = listener
+        .accept()
+        .await
+        .map_err(|e| GadsError::Auth(format!("Failed to accept connection: {e}")))?;
+
+    let mut buf = vec![0u8; 4096];
+    let n = stream
+        .read(&mut buf)
+        .await
+        .map_err(|e| GadsError::Auth(format!("Failed to read request: {e}")))?;
+    let request = String::from_utf8_lossy(&buf[..n]);
+
+    // Parse the authorization code from the query string (GET /?code=...&scope=...)
+    let code = request
+        .lines()
+        .next()
+        .and_then(|line| line.split_whitespace().nth(1)) // "/path?query"
+        .and_then(|path| url::Url::parse(&format!("http://localhost{path}")).ok())
+        .and_then(|url| {
+            url.query_pairs()
+                .find(|(k, _)| k == "code")
+                .map(|(_, v)| v.into_owned())
+        });
+
+    // Check for error in the callback
+    if code.is_none() {
+        let error = request
+            .lines()
+            .next()
+            .and_then(|line| line.split_whitespace().nth(1))
+            .and_then(|path| url::Url::parse(&format!("http://localhost{path}")).ok())
+            .and_then(|url| {
+                url.query_pairs()
+                    .find(|(k, _)| k == "error")
+                    .map(|(_, v)| v.into_owned())
+            });
+
+        let html = if let Some(err) = &error {
+            format!(
+                "<html><body><h2>Authorization failed</h2><p>Error: {err}</p><p>You can close this tab.</p></body></html>"
+            )
+        } else {
+            "<html><body><h2>Authorization failed</h2><p>No authorization code received.</p></body></html>".to_string()
+        };
+
+        let response = format!(
+            "HTTP/1.1 400 Bad Request\r\nContent-Type: text/html\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+            html.len(),
+            html
+        );
+        let _ = stream.write_all(response.as_bytes()).await;
+        let _ = stream.shutdown().await;
+
+        return Err(GadsError::Auth(format!(
+            "Authorization failed: {}",
+            error.unwrap_or_else(|| "no code received".into())
+        )));
+    }
+
+    // Send a success response to the browser
+    let html = "<html><body><h2>Authorization successful!</h2><p>You can close this tab and return to the terminal.</p></body></html>";
+    let response = format!(
+        "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+        html.len(),
+        html
+    );
+    let _ = stream.write_all(response.as_bytes()).await;
+    let _ = stream.shutdown().await;
+
+    Ok(code.unwrap())
+}
+
 async fn exchange_code_for_token(
     client_id: &str,
     client_secret: &str,
     auth_code: &str,
+    redirect_uri: &str,
 ) -> Result<String> {
     #[derive(serde::Deserialize)]
     struct TokenResponse {
@@ -81,7 +179,7 @@ async fn exchange_code_for_token(
         ("grant_type", "authorization_code"),
         ("client_id", client_id),
         ("client_secret", client_secret),
-        ("redirect_uri", "urn:ietf:wg:oauth:2.0:oob"),
+        ("redirect_uri", redirect_uri),
         ("code", auth_code),
     ];
 
