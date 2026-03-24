@@ -132,13 +132,45 @@ pub async fn handle(command: &CampaignCommands, client: &GoogleAdsClient, cli: &
         } => {
             let budget_resource = format!("customers/{}/campaignBudgets/{}", customer_id, budget_id);
 
-            let payload = serde_json::json!({
+            let mut payload = serde_json::json!({
                 "name": name,
                 "advertisingChannelType": campaign_type,
                 "status": "PAUSED",
                 "campaignBudget": budget_resource,
-                "biddingStrategyType": bidding_strategy
+                "networkSettings": {
+                    "targetGoogleSearch": true,
+                    "targetSearchNetwork": true,
+                    "targetPartnerSearchNetwork": false,
+                    "targetContentNetwork": false
+                },
+                "containsEuPoliticalAdvertising": 3
             });
+
+            // Map bidding strategy to proper inline API fields
+            match bidding_strategy.as_str() {
+                "MANUAL_CPC" => {
+                    payload["manualCpc"] = serde_json::json!({});
+                }
+                "MANUAL_CPM" => {
+                    payload["manualCpm"] = serde_json::json!({});
+                }
+                "MAXIMIZE_CLICKS" => {
+                    payload["targetSpend"] = serde_json::json!({});
+                }
+                "MAXIMIZE_CONVERSIONS" => {
+                    payload["maximizeConversions"] = serde_json::json!({});
+                }
+                "TARGET_CPA" => {
+                    payload["targetCpa"] = serde_json::json!({});
+                }
+                "TARGET_ROAS" => {
+                    payload["targetRoas"] = serde_json::json!({});
+                }
+                _ => {
+                    // Assume it's a portfolio bidding strategy resource name or unknown type
+                    payload["biddingStrategy"] = serde_json::Value::String(bidding_strategy.clone());
+                }
+            }
 
             let operations: Vec<MutateOperation<serde_json::Value>> = vec![MutateOperation {
                 create: Some(payload),

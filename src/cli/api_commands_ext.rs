@@ -76,9 +76,6 @@ pub enum AssetCommands {
         #[arg(long)]
         text_content: Option<String>,
     },
-    Remove {
-        id: String,
-    },
     /// Link an asset to a campaign
     Link {
         #[arg(long)]
@@ -189,15 +186,34 @@ pub enum RecommendationCommands {
 // Batch
 #[derive(Subcommand)]
 pub enum BatchCommands {
+    /// Create a new batch job
     Create,
-    Run {
-        id: String,
+    /// Add operations to a batch job
+    AddOperations {
+        #[arg(long)]
+        job_id: String,
+        /// JSON file containing operations array
+        #[arg(long)]
+        file: Option<String>,
+        /// Inline JSON operations
+        #[arg(long)]
+        json: Option<String>,
     },
-    Status {
+    /// Run a batch job
+    Run { id: String },
+    /// Check batch job status
+    Status { id: String },
+    /// Get batch job results
+    Results { id: String },
+    /// Wait for batch job completion with polling
+    Wait {
         id: String,
-    },
-    Results {
-        id: String,
+        /// Timeout in seconds
+        #[arg(long, default_value = "300")]
+        timeout_secs: u64,
+        /// Poll interval in seconds
+        #[arg(long, default_value = "5")]
+        poll_interval_secs: u64,
     },
 }
 

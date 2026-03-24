@@ -86,6 +86,71 @@ impl DateRange {
             end_date: last_last_month.format("%Y-%m-%d").to_string(),
         }
     }
+
+    pub fn last_14_days() -> Self {
+        let today = Local::now().date_naive();
+        let start = today - Duration::days(14);
+        Self {
+            start_date: start.format("%Y-%m-%d").to_string(),
+            end_date: today.format("%Y-%m-%d").to_string(),
+        }
+    }
+
+    pub fn this_week_sun_today() -> Self {
+        let today = Local::now().date_naive();
+        let days_since_sunday = today.weekday().num_days_from_sunday();
+        let sunday = today - Duration::days(days_since_sunday as i64);
+        Self {
+            start_date: sunday.format("%Y-%m-%d").to_string(),
+            end_date: today.format("%Y-%m-%d").to_string(),
+        }
+    }
+
+    pub fn this_week_mon_today() -> Self {
+        let today = Local::now().date_naive();
+        let days_since_monday = today.weekday().num_days_from_monday();
+        let monday = today - Duration::days(days_since_monday as i64);
+        Self {
+            start_date: monday.format("%Y-%m-%d").to_string(),
+            end_date: today.format("%Y-%m-%d").to_string(),
+        }
+    }
+
+    pub fn last_week_sun_sat() -> Self {
+        let today = Local::now().date_naive();
+        let days_since_sunday = today.weekday().num_days_from_sunday();
+        let this_sunday = today - Duration::days(days_since_sunday as i64);
+        let last_sunday = this_sunday - Duration::days(7);
+        let last_saturday = last_sunday + Duration::days(6);
+        Self {
+            start_date: last_sunday.format("%Y-%m-%d").to_string(),
+            end_date: last_saturday.format("%Y-%m-%d").to_string(),
+        }
+    }
+
+    pub fn last_week_mon_sun() -> Self {
+        let today = Local::now().date_naive();
+        let days_since_monday = today.weekday().num_days_from_monday();
+        let this_monday = today - Duration::days(days_since_monday as i64);
+        let last_monday = this_monday - Duration::days(7);
+        let last_sunday = last_monday + Duration::days(6);
+        Self {
+            start_date: last_monday.format("%Y-%m-%d").to_string(),
+            end_date: last_sunday.format("%Y-%m-%d").to_string(),
+        }
+    }
+
+    pub fn last_business_week() -> Self {
+        let today = Local::now().date_naive();
+        let days_since_monday = today.weekday().num_days_from_monday();
+        let this_monday = today - Duration::days(days_since_monday as i64);
+        let last_monday = this_monday - Duration::days(7);
+        let last_friday = last_monday + Duration::days(4);
+        Self {
+            start_date: last_monday.format("%Y-%m-%d").to_string(),
+            end_date: last_friday.format("%Y-%m-%d").to_string(),
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

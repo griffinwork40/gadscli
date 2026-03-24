@@ -155,9 +155,15 @@ fn resolve_named_date_range(name: &str) -> Option<DateRange> {
         "TODAY" => Some(DateRange::today()),
         "YESTERDAY" => Some(DateRange::yesterday()),
         "LAST_7_DAYS" => Some(DateRange::last_7_days()),
+        "LAST_14_DAYS" => Some(DateRange::last_14_days()),
         "LAST_30_DAYS" => Some(DateRange::last_30_days()),
+        "LAST_BUSINESS_WEEK" => Some(DateRange::last_business_week()),
         "THIS_MONTH" => Some(DateRange::this_month()),
         "LAST_MONTH" => Some(DateRange::last_month()),
+        "THIS_WEEK_SUN_TODAY" => Some(DateRange::this_week_sun_today()),
+        "THIS_WEEK_MON_TODAY" => Some(DateRange::this_week_mon_today()),
+        "LAST_WEEK_SUN_SAT" => Some(DateRange::last_week_sun_sat()),
+        "LAST_WEEK_MON_SUN" => Some(DateRange::last_week_mon_sun()),
         _ => None,
     }
 }

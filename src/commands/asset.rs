@@ -1,7 +1,6 @@
 use crate::cli::{AssetCommands, Cli};
 use crate::client::GoogleAdsClient;
 use crate::error::Result;
-use crate::types::operations::MutateOperation;
 use crate::types::resources::Asset;
 
 pub async fn handle(command: &AssetCommands, client: &GoogleAdsClient, cli: &Cli) -> Result<()> {
@@ -115,20 +114,6 @@ pub async fn handle(command: &AssetCommands, client: &GoogleAdsClient, cli: &Cli
 
             println!("Created asset: {}", resource_name);
             let _ = asset; // suppress unused warning
-        }
-
-        AssetCommands::Remove { id } => {
-            let resource_name = format!("customers/{}/assets/{}", customer_id, id);
-            let op: MutateOperation<Asset> = MutateOperation {
-                create: None,
-                update: None,
-                remove: Some(resource_name.clone()),
-                update_mask: None,
-            };
-            client
-                .mutate(&customer_id, "assets", vec![op], false, false)
-                .await?;
-            println!("Removed asset: {}", resource_name);
         }
 
         AssetCommands::Link {

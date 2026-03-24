@@ -17,9 +17,23 @@ pub fn parse_pin(s: &str, prefix: &str) -> Option<(String, String)> {
     }
 }
 
-fn ad_resource_name(cid: &str, id: &str) -> String {
-    if id.starts_with("customers/") { id.to_string() }
-    else { format!("customers/{}/adGroupAds/{}", cid, id) }
+fn ad_resource_name(cid: &str, ad_group_id: &str, ad_id: &str) -> String {
+    format!("customers/{}/adGroupAds/{}~{}", cid, ad_group_id, ad_id)
+}
+
+/// Look up the ad group resource name for a given ad ID
+async fn lookup_ad_group_id(client: &GoogleAdsClient, cid: &str, ad_id: &str) -> Result<String> {
+    let query = format!(
+        "SELECT ad_group_ad.ad_group FROM ad_group_ad WHERE ad_group_ad.ad.id = {}",
+        ad_id
+    );
+    let rows = client.search_all(cid, &query, Some(1)).await?;
+    let ad_group = rows.first()
+        .and_then(|r| r.ad_group_ad.as_ref())
+        .and_then(|aga| aga.ad_group.as_ref())
+        .ok_or_else(|| crate::error::GadsError::Other(format!("Ad {} not found", ad_id)))?;
+    // Extract the numeric ad group ID from "customers/{cid}/adGroups/{id}"
+    Ok(ad_group.rsplit('/').next().unwrap_or(ad_group).to_string())
 }
 
 pub async fn handle(command: &AdCommands, client: &GoogleAdsClient, cli: &Cli) -> Result<()> {
@@ -247,13 +261,107 @@ pub async fn handle(command: &AdCommands, client: &GoogleAdsClient, cli: &Cli) -
             }
         }
 
+        AdCommands::Update {
+            id,
+            ad_group_id,
+            headlines,
+            descriptions,
+            final_url,
+            pin_headline,
+            pin_description,
+        } => {
+            // Build headline/description assets with optional pinning
+            let pin_h: std::collections::HashMap<String, String> = pin_headline
+                .iter()
+                .filter_map(|p| parse_pin(p, "HEADLINE"))
+                .collect();
+            let pin_d: std::collections::HashMap<String, String> = pin_description
+                .iter()
+                .filter_map(|p| parse_pin(p, "DESCRIPTION"))
+                .collect();
+
+            let headline_assets: Vec<serde_json::Value> = headlines
+                .iter()
+                .map(|h| {
+                    let mut asset = serde_json::json!({ "text": h });
+                    if let Some(field) = pin_h.get(h.as_str()) {
+                        asset["pinnedField"] = serde_json::json!(field);
+                    }
+                    asset
+                })
+                .collect();
+
+            let description_assets: Vec<serde_json::Value> = descriptions
+                .iter()
+                .map(|d| {
+                    let mut asset = serde_json::json!({ "text": d });
+                    if let Some(field) = pin_d.get(d.as_str()) {
+                        asset["pinnedField"] = serde_json::json!(field);
+                    }
+                    asset
+                })
+                .collect();
+
+            // Build field mask paths
+            let mut mask_paths = vec![
+                "responsive_search_ad.headlines".to_string(),
+                "responsive_search_ad.descriptions".to_string(),
+            ];
+            if final_url.is_some() {
+                mask_paths.push("final_urls".to_string());
+            }
+            let update_mask = mask_paths.join(",");
+
+            // The ads:mutate endpoint uses the Ad resource name (not adGroupAd)
+            let resource_name = format!("customers/{}/ads/{}", cid, id);
+
+            let mut ad_obj = serde_json::json!({
+                "resourceName": resource_name,
+                "responsiveSearchAd": {
+                    "headlines": headline_assets,
+                    "descriptions": description_assets
+                }
+            });
+
+            if let Some(url) = final_url {
+                ad_obj["finalUrls"] = serde_json::json!([url]);
+            }
+
+            let ops: Vec<MutateOperation<serde_json::Value>> = vec![MutateOperation {
+                create: None,
+                update: Some(ad_obj),
+                remove: None,
+                update_mask: Some(update_mask.clone()),
+            }];
+
+            if cli.dry_run {
+                println!(
+                    "[dry-run] Would update RSA {} (ad group {}) with {} headlines, {} descriptions. Field mask: {}",
+                    id,
+                    ad_group_id,
+                    headlines.len(),
+                    descriptions.len(),
+                    update_mask
+                );
+                return Ok(());
+            }
+
+            let resp = client.mutate(&cid, "ads", ops, false, false).await?;
+            if let Some(result) = resp.results.first() {
+                println!("Updated ad: {}", result.resource_name);
+            } else {
+                println!("Ad {} updated.", id);
+            }
+        }
+
         AdCommands::Pause { id } | AdCommands::Enable { id } => {
             let (status, verb) = if matches!(command, AdCommands::Pause { .. }) {
                 ("PAUSED", "paused")
             } else {
                 ("ENABLED", "enabled")
             };
-            let resource_name = ad_resource_name(&cid, id);
+            let ag_id = lookup_ad_group_id(client, &cid, id).await?;
+            let resource_name = ad_resource_name(&cid, &ag_id, id);
             let resource = serde_json::json!({ "resourceName": resource_name, "status": status });
             let ops: Vec<MutateOperation<serde_json::Value>> = vec![MutateOperation {
                 create: None, update: Some(resource), remove: None,
@@ -268,7 +376,8 @@ pub async fn handle(command: &AdCommands, client: &GoogleAdsClient, cli: &Cli) -
         }
 
         AdCommands::Remove { id } => {
-            let resource_name = ad_resource_name(&cid, id);
+            let ag_id = lookup_ad_group_id(client, &cid, id).await?;
+            let resource_name = ad_resource_name(&cid, &ag_id, id);
             let ops: Vec<MutateOperation<serde_json::Value>> = vec![MutateOperation {
                 create: None, update: None,
                 remove: Some(resource_name.clone()), update_mask: None,

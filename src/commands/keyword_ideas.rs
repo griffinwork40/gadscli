@@ -22,11 +22,20 @@ pub async fn handle_ideas(
 
     let mut body = serde_json::json!({});
 
-    if !texts.is_empty() {
-        body["keywordSeed"] = serde_json::json!({ "keywords": texts });
-    }
-    if let Some(u) = url {
-        body["urlSeed"] = serde_json::json!({ "url": u });
+    match (!texts.is_empty(), url.is_some()) {
+        (true, true) => {
+            body["keywordAndUrlSeed"] = serde_json::json!({
+                "keywords": texts,
+                "url": url.unwrap()
+            });
+        }
+        (true, false) => {
+            body["keywordSeed"] = serde_json::json!({ "keywords": texts });
+        }
+        (false, true) => {
+            body["urlSeed"] = serde_json::json!({ "url": url.unwrap() });
+        }
+        (false, false) => unreachable!(),
     }
     if let Some(lang) = language {
         body["language"] = serde_json::json!(lang);

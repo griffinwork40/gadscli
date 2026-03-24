@@ -147,6 +147,29 @@ pub enum AdCommands {
         #[arg(long, num_args = 0..)]
         pin_description: Vec<String>,
     },
+    /// Update an existing RSA's headlines, descriptions, and/or final URL
+    Update {
+        /// The ad ID to update
+        id: String,
+        /// The ad group ID the ad belongs to (required for resource name)
+        #[arg(long)]
+        ad_group_id: String,
+        /// Full replacement set of headlines
+        #[arg(long, num_args = 1..)]
+        headlines: Vec<String>,
+        /// Full replacement set of descriptions
+        #[arg(long, num_args = 1..)]
+        descriptions: Vec<String>,
+        /// Override the final URL
+        #[arg(long)]
+        final_url: Option<String>,
+        /// Pin headlines: "Text:1" pins to HEADLINE_1
+        #[arg(long, num_args = 0..)]
+        pin_headline: Vec<String>,
+        /// Pin descriptions: "Text:1" pins to DESCRIPTION_1
+        #[arg(long, num_args = 0..)]
+        pin_description: Vec<String>,
+    },
     Pause {
         id: String,
     },

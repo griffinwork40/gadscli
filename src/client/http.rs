@@ -121,53 +121,108 @@ impl HttpClient {
     fn parse_error(status: u16, body: &serde_json::Value) -> GadsError {
         let mut details = Vec::new();
 
+        // Google Ads API wraps real errors in: error.details[].errors[]
+        // Each detail has a @type of GoogleAdsFailure and contains an errors array.
         if let Some(error_details) = body
             .get("error")
             .and_then(|e| e.get("details"))
             .and_then(|d| d.as_array())
         {
             for detail in error_details {
-                let error_code = detail
-                    .get("errorCode")
-                    .and_then(|c| c.as_str())
-                    .unwrap_or("UNKNOWN")
-                    .to_string();
-                let msg = detail
-                    .get("message")
-                    .and_then(|m| m.as_str())
-                    .unwrap_or("Unknown error")
-                    .to_string();
+                // Try the nested errors[] array (Google Ads REST format)
+                if let Some(errors) = detail.get("errors").and_then(|e| e.as_array()) {
+                    for err in errors {
+                        // errorCode is an object like {"resourceCountLimitExceededError": "RESOURCE_LIMIT"}
+                        let error_code = err
+                            .get("errorCode")
+                            .and_then(|c| c.as_object())
+                            .and_then(|m| m.values().next())
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("UNKNOWN")
+                            .to_string();
 
-                details.push(crate::error::ApiErrorDetail {
-                    error_code,
-                    message: msg,
-                    trigger: detail
-                        .get("trigger")
-                        .and_then(|t| t.as_str())
-                        .map(String::from),
-                    location: detail
-                        .get("location")
-                        .and_then(|l| l.as_str())
-                        .map(String::from),
-                    field_path: detail
-                        .get("fieldPath")
-                        .and_then(|f| f.as_str())
-                        .map(String::from),
-                });
+                        let msg = err
+                            .get("message")
+                            .and_then(|m| m.as_str())
+                            .unwrap_or("Unknown error")
+                            .to_string();
+
+                        let trigger = err
+                            .get("trigger")
+                            .and_then(|t| t.get("stringValue"))
+                            .and_then(|v| v.as_str())
+                            .or_else(|| err.get("trigger").and_then(|t| t.as_str()))
+                            .map(String::from);
+
+                        details.push(crate::error::ApiErrorDetail {
+                            error_code,
+                            message: msg,
+                            trigger,
+                            location: None,
+                            field_path: None,
+                        });
+                    }
+                } else {
+                    // Fallback: flat detail (older format)
+                    let error_code = detail
+                        .get("errorCode")
+                        .and_then(|c| c.as_str())
+                        .unwrap_or("UNKNOWN")
+                        .to_string();
+                    let msg = detail
+                        .get("message")
+                        .and_then(|m| m.as_str())
+                        .unwrap_or("Unknown error")
+                        .to_string();
+
+                    details.push(crate::error::ApiErrorDetail {
+                        error_code,
+                        message: msg,
+                        trigger: detail
+                            .get("trigger")
+                            .and_then(|t| t.as_str())
+                            .map(String::from),
+                        location: detail
+                            .get("location")
+                            .and_then(|l| l.as_str())
+                            .map(String::from),
+                        field_path: detail
+                            .get("fieldPath")
+                            .and_then(|f| f.as_str())
+                            .map(String::from),
+                    });
+                }
             }
         }
 
-        let message = body
+        let top_message = body
             .get("error")
             .and_then(|e| e.get("message"))
             .and_then(|m| m.as_str())
             .unwrap_or("Unknown API error")
             .to_string();
 
+        // Build a descriptive message from the inner errors if available
+        let message = if details.is_empty() {
+            top_message.clone()
+        } else {
+            let inner: Vec<String> = details
+                .iter()
+                .map(|d| {
+                    if let Some(ref trigger) = d.trigger {
+                        format!("{}: {} ({})", d.error_code, d.message, trigger)
+                    } else {
+                        format!("{}: {}", d.error_code, d.message)
+                    }
+                })
+                .collect();
+            format!("{} — {}", top_message, inner.join("; "))
+        };
+
         if details.is_empty() {
             details.push(crate::error::ApiErrorDetail {
                 error_code: format!("HTTP_{}", status),
-                message: message.clone(),
+                message: top_message,
                 trigger: None,
                 location: None,
                 field_path: None,

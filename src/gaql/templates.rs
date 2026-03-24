@@ -54,7 +54,7 @@ pub fn ad_group_performance() -> ReportTemplate {
 pub fn keyword_performance() -> ReportTemplate {
     ReportTemplate {
         name: "keyword-performance".to_string(),
-        description: "Keyword performance with quality score".to_string(),
+        description: "Keyword performance metrics (impressions, clicks, cost, conversions)".to_string(),
         query: "SELECT ad_group_criterion.criterion_id, ad_group_criterion.keyword.text, \
                 ad_group_criterion.keyword.match_type, ad_group_criterion.status, \
                 metrics.impressions, metrics.clicks, metrics.ctr, \
