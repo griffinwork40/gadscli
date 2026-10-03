@@ -7,3 +7,6 @@ node_modules/
 *~
 .DS_Store
 credentials.enc
+
+# Template with empty placeholders; safe to track
+!.env.example
